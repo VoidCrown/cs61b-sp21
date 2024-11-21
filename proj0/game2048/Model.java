@@ -5,7 +5,7 @@ import java.util.Observable;
 
 
 /** The state of a game of 2048.
- *  @author TODO: YOUR NAME HERE
+ *  @author TODO: Mr.T
  */
 public class Model extends Observable {
     /** Current contents of the board. */
@@ -113,12 +113,71 @@ public class Model extends Observable {
         // TODO: Modify this.board (and perhaps this.score) to account
         // for the tilt to the Side SIDE. If the board changed, set the
         // changed local variable to true.
+        board.setViewingPerspective(side);
+        for (int c = 0; c < board.size(); c++) {
+            tiltOneColumn(c);
+        }
+        board.setViewingPerspective(Side.NORTH);
 
+        changed = Model.atLeastOneMoveExists(board);
         checkGameOver();
         if (changed) {
             setChanged();
         }
         return changed;
+    }
+
+    /** tilt one column.*/
+    private void tiltOneColumn(int column) {
+        boolean merged = false;
+        for (int r = board.size() - 1; r >= 0; r--) {
+            if (board.tile(column, r) != null) {
+                merged = tiltOneTile(column, r, merged);
+            }
+        }
+    }
+
+    /** tilt one tile.
+     *  There two types of tiles:
+     *  1. no previous tile: just move
+     *  2. has previous tile: check the value of previous tile:
+     *      1)same: merge if no merging in previous turn
+     *      2)different: move
+     */
+    private boolean tiltOneTile(int column, int row, boolean merged) {
+        //check whether exists previous tile
+        int row_p = checkPreviousTile(column, row);
+        if( row_p != board.size()){
+            //exist some previous tile, check the value
+            if( !merged && board.tile(column, row).value() == board.tile(column, row_p).value()) {
+                //merge
+                Tile t = board.tile(column, row);
+                board.move(column, row_p, t);
+                score += board.tile(column, row_p).value();
+                return true;
+            } else {
+                //move
+                Tile t = board.tile(column, row);
+                board.move(column, row_p - 1, t);
+                return false;
+            }
+        } else {
+            //no previous tile, move to edge
+            Tile t = board.tile(column, row);
+            board.move(column, board.size() - 1, t);
+            return false;
+        }
+    }
+
+    /** check if there is any previous tile of the given tile
+     *  return the row of previous tile, return board.size() if no previous tile
+     */
+    private int checkPreviousTile(int column, int row) {
+        for (int r  = row + 1; r < board.size(); r++) {
+            if (board.tile(column, r) != null)
+                return r;
+        }
+        return board.size();
     }
 
     /** Checks if the game is over and sets the gameOver variable
@@ -156,7 +215,7 @@ public class Model extends Observable {
         // TODO: Fill in this function.
         for (int i = 0; i < b.size(); i++) {
             for (int j = 0; j < b.size(); j++) {
-                if (b.tile(i, j).value() == MAX_PIECE)
+                if (b.tile(i, j) != null && b.tile(i, j).value() == MAX_PIECE)
                     return true;
             }
         }
@@ -171,6 +230,22 @@ public class Model extends Observable {
      */
     public static boolean atLeastOneMoveExists(Board b) {
         // TODO: Fill in this function.
+        if (Model.emptySpaceExists(b)) {
+            return true;
+        }
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+                if (i + 1 < b.size() && b.tile(i, j).value() == b.tile(i + 1, j).value()) {
+                    return true;
+                } else if(j + 1 < b.size() && b.tile(i, j).value() == b.tile(i, j + 1).value()) {
+                    return true;
+                } else if(i - 1 >= 0 && b.tile(i, j).value() == b.tile(i - 1, j).value()) {
+                    return true;
+                } else if(j - 1 >= 0 && b.tile(i, j).value() == b.tile(i, j - 1).value()) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
