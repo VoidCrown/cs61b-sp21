@@ -114,12 +114,17 @@ public class Model extends Observable {
         // for the tilt to the Side SIDE. If the board changed, set the
         // changed local variable to true.
         board.setViewingPerspective(side);
+        int count = 0;
         for (int c = 0; c < board.size(); c++) {
-            tiltOneColumn(c);
+            if(tiltOneColumn(c))
+                count++;
+        }
+        if (count != 0) {
+            changed = true;
         }
         board.setViewingPerspective(Side.NORTH);
 
-        changed = Model.atLeastOneMoveExists(board);
+
         checkGameOver();
         if (changed) {
             setChanged();
@@ -127,14 +132,21 @@ public class Model extends Observable {
         return changed;
     }
 
-    /** tilt one column.*/
-    private void tiltOneColumn(int column) {
+    /** tilt one column, return if changed*/
+    private boolean tiltOneColumn(int column) {
         boolean merged = false;
+        int count = 0;
+        boolean[] temp = {false, false};
         for (int r = board.size() - 1; r >= 0; r--) {
             if (board.tile(column, r) != null) {
-                merged = tiltOneTile(column, r, merged);
+                temp = tiltOneTile(column, r, merged);
+                merged = temp[0];
+                if(temp[1]) {
+                    count++;
+                }
             }
         }
+        return count != 0;
     }
 
     /** tilt one tile.
@@ -144,7 +156,8 @@ public class Model extends Observable {
      *      1)same: merge if no merging in previous turn
      *      2)different: move
      */
-    private boolean tiltOneTile(int column, int row, boolean merged) {
+    private boolean[] tiltOneTile(int column, int row, boolean merged) {
+        boolean[] merged_changed = {false, false};
         //check whether exists previous tile
         int row_p = checkPreviousTile(column, row);
         if( row_p != board.size()){
@@ -154,18 +167,26 @@ public class Model extends Observable {
                 Tile t = board.tile(column, row);
                 board.move(column, row_p, t);
                 score += board.tile(column, row_p).value();
-                return true;
+                merged_changed[0] = true;
+                merged_changed[1] = true;
+                return merged_changed;
             } else {
                 //move
-                Tile t = board.tile(column, row);
-                board.move(column, row_p - 1, t);
-                return false;
+                if(row != row_p - 1) {
+                    Tile t = board.tile(column, row);
+                    board.move(column, row_p - 1, t);
+                    merged_changed[1] = true;
+                }
+                return merged_changed;
             }
         } else {
             //no previous tile, move to edge
-            Tile t = board.tile(column, row);
-            board.move(column, board.size() - 1, t);
-            return false;
+            if(row != board.size() - 1){
+                Tile t = board.tile(column, row);
+                board.move(column, board.size() - 1, t);
+                merged_changed[1] = true;
+            }
+            return merged_changed;
         }
     }
 
