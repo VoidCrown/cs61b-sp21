@@ -6,9 +6,9 @@ package deque;
 public class LinkedListDeque<T>  {
     /** Implement the class of node in LinkedListDeque. */
     public class DequeNode{
-        T item;
-        DequeNode previous;
-        DequeNode next;
+        private T item;
+        private DequeNode previous;
+        private DequeNode next;
 
         public DequeNode(T i, DequeNode p, DequeNode n) {
             item = i;
@@ -17,8 +17,8 @@ public class LinkedListDeque<T>  {
         }
     }
 
-    DequeNode sentinel;
-    int size;
+    private DequeNode sentinel;
+    private int size;
 
     public LinkedListDeque() {
         size = 0;
