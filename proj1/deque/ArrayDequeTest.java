@@ -83,4 +83,15 @@ public class ArrayDequeTest {
             }
         }
     }
+
+    @Test
+    public void iteratorTest() {
+        ArrayDeque<Integer> test = new ArrayDeque<>();
+        for (int i = 0; i < 10; i++) {
+            test.addLast(1);
+        }
+        for (Integer i : test) {
+            assertEquals(1, (long) i);
+        }
+    }
 }

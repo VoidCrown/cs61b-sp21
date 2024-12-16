@@ -1,11 +1,13 @@
 package deque;
 
+import java.util.Iterator;
+
 /** Invariants:
  *  1. The position of the next item to be inserted (using addLast) is always size.
  *  2. The number of items in the AList is always size.
  *  3. The position of the last item in the list is always size - 1.
  */
-public class ArrayDeque<T> implements Deque<T> {
+public class ArrayDeque<T> implements Deque<T>, Iterable<T> {
     private int size;
     private T[] items;
     private int nextFirst, nextLast;
@@ -115,5 +117,30 @@ public class ArrayDeque<T> implements Deque<T> {
             return null;
         }
         return items[(nextFirst + 1 + index) % items.length];
+    }
+
+    @Override
+    public Iterator<T> iterator() {
+        return new ADIterator();
+    }
+
+    private class ADIterator implements Iterator<T> {
+
+        private int position;
+        public ADIterator() {
+            position = 0;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return position < size;
+        }
+
+        @Override
+        public T next() {
+            T returnItem = items[position];
+            position += 1;
+            return returnItem;
+        }
     }
 }
