@@ -3,7 +3,8 @@ package deque;
 import edu.princeton.cs.algs4.StdRandom;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
 
 public class ArrayDequeTest {
     /** Test add items when the deque is full. */
@@ -93,5 +94,31 @@ public class ArrayDequeTest {
         for (Integer i : test) {
             assertEquals(1, (long) i);
         }
+    }
+
+    @Test
+    /* Test equals() method. */
+    public void equalsTest() {
+        ArrayDeque<Integer> ad = new ArrayDeque<>();
+        ArrayDeque<Integer> ad1 = new ArrayDeque<>();
+        ArrayDeque<Integer> ad2 = new ArrayDeque<>();
+
+        for (int i = 0; i < 10; i++) {
+            ad.addLast(1);
+        }
+
+        for (int i = 0; i < 10; i++) {
+            ad1.addLast(1);
+        }
+
+        for (int i = 0; i < 10; i++) {
+            ad2.addLast(i);
+        }
+
+        assertTrue(ad.equals(ad1));
+        assertTrue(ad1.equals(ad1));
+        assertTrue(ad1.equals(ad));
+        assertFalse(ad2.equals(ad1));
+        assertFalse(ad.equals(ad2));
     }
 }

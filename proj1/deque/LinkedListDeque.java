@@ -1,5 +1,7 @@
 package deque;
 
+import afu.org.checkerframework.checker.oigj.qual.O;
+
 import java.util.Iterator;
 
 /** Implement linked list deque.
@@ -147,5 +149,28 @@ public class LinkedListDeque<T> implements Deque<T>, Iterable<T>  {
             current = current.next;
             return returnItem;
         }
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other == null) {
+            return false;
+        }
+        if (other == this) {
+            return true;
+        }
+        if (other.getClass() != this.getClass()) {
+            return false;
+        }
+        LinkedListDeque<T> o = (LinkedListDeque<T>) other;
+        if (o.size() != this.size()) {
+            return false;
+        }
+        for (int i = 0; i < size(); i++) {
+            if(!get(i).equals(o.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 }
