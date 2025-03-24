@@ -3,6 +3,7 @@ package gitlet;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 import static gitlet.Utils.*;
 
@@ -40,6 +41,10 @@ public class Repository {
     public static final File REFS_DIR = join(GITLET_DIR, "refs");
     /** The heads directory. */
     public static final File HEADS_DIR = join(REFS_DIR, "heads");
+    /** The HEAD file */
+    public static final File HEAD = join(GITLET_DIR, "HEAD");
+    /** The stage area file */
+    public static final File STAGE = join(GITLET_DIR, "stage");
 
 //    /** The addition stage directory. */
 //    public static final File ADDITION_STAGE_DIR = join(GITLET_DIR, "additionStage");
@@ -90,13 +95,11 @@ public class Repository {
         commit.saveToFile(c_obj);
 
         // create and initialize necessary files: HEAD, master and stage.
-        File HEAD = join(GITLET_DIR, "HEAD");
         File master = join(HEADS_DIR, "master");
-        File stageArea = join(GITLET_DIR, "stage");
         Stage stage = new Stage();
         writeContents(HEAD, id);
         writeContents(master, id);
-        writeObject(stageArea, stage);
+        writeObject(STAGE, stage);
 
     }
 
@@ -129,17 +132,16 @@ public class Repository {
         // 3. Remove blob from additionStage if the blob is same.
         Blob blob = new Blob(readContents(addedFile));
         String id = blob.getID();
-        File b_objdir = join(COMMITS_DIR, id.substring(0, 1));
-        File b_obj = join(COMMITS_DIR, id.substring(0, 1), id.substring(2));
-        File stageFile = join(GITLET_DIR, "stage");
-        Stage stage = readObject(stageFile, Stage.class);
+        File b_objdir = join(BLOBS_DIR, id.substring(0, 1));
+        File b_obj = join(BLOBS_DIR, id.substring(0, 1), id.substring(2));
+        Stage stage = readObject(STAGE, Stage.class);
         HashMap<String, String> additionStage = stage.getAdditionStage();
 
         if (additionStage.containsKey(filename) && additionStage.containsValue(id)) {
             // the blob is same
             // remove blob from additionStage
             additionStage.replace(filename, id);
-            stage.saveToFile(stageFile);
+            stage.saveToFile(STAGE);
         } else {
             // blob is different
             // create or overwrite blob file to .gitlet/objects/blobs directory
@@ -148,7 +150,93 @@ public class Repository {
 
             // add or overwrite blob to additionStage
             additionStage.put(filename, id);
-            stage.saveToFile(stageFile);
+            stage.saveToFile(STAGE);
+        }
+    }
+
+    /** Implement commit message.
+     * Saves a snapshot of tracked files in the current commit and staging area so they can be restored at a later time,
+     * creating a new commit.
+     * By default, each commit’s snapshot of files will be exactly the same as its parent commit’s snapshot of files;
+     * it will keep versions of files exactly as they are, and not update them.
+     * A commit will only update the contents of files it is tracking that have been staged for addition at the time of commit,
+     * in which case the commit will now include the version of the file that was staged
+     * instead of the version it got from its parent.
+     * A commit will save and start tracking any files that were staged for addition but weren’t tracked by its parent.
+     * Finally, files tracked in the current commit may be untracked in the new commit
+     * as a result being staged for removal by the rm command.
+     * */
+    public static void commit(String message) {
+        // get current commit
+        String str_currentCommit = readContentsAsString(HEAD);
+        File c_obj = join(COMMITS_DIR, str_currentCommit.substring(0, 1), str_currentCommit.substring(2));
+        Commit currentCommit = readObject(c_obj, Commit.class);
+
+        // default snapshot
+        Commit newCommit = new Commit(message, currentCommit);
+
+        // update commit
+        HashMap<String, String> files = newCommit.getFiles();
+        Stage stage = readObject(STAGE, Stage.class);
+        HashMap<String, String> additionStage = stage.getAdditionStage();
+        HashMap<String, String> removalStage = stage.getRemovalStageStage();
+
+        if (additionStage.isEmpty() && removalStage.isEmpty()) {
+            throw error("No changes added to the commit.");
+        }
+        files.putAll(additionStage);
+        for (Map.Entry<String, String> entry : removalStage.entrySet()) {
+            files.remove(entry.getKey(), entry.getValue());
+        }
+
+        // clear and save stage
+        additionStage.clear();
+        removalStage.clear();
+        stage.saveToFile(STAGE);
+
+        // save commit
+        String id = newCommit.getID();
+        File new_c_objdir = join(COMMITS_DIR, id.substring(0, 1));
+        File new_c_obj = join(COMMITS_DIR, id.substring(0, 1), id.substring(2));
+        new_c_objdir.mkdirs();
+        newCommit.saveToFile(new_c_obj);
+
+        // update HEAD
+        writeContents(HEAD, id);
+    }
+
+    /** Implement rm command.
+     * Unstage the file if it is currently staged for addition.
+     * If the file is tracked in the current commit,
+     * stage it for removal and remove the file from the working directory
+     * if the user has not already done so (do not remove it unless it is tracked in the current commit).
+     * */
+    public static void rm(String filename) {
+        Stage stage = readObject(STAGE, Stage.class);
+        HashMap<String, String> additionStage = stage.getAdditionStage();
+        HashMap<String, String> removalStage = stage.getRemovalStageStage();
+        String commitID = readContentsAsString(HEAD);
+        File c_obj = join(COMMITS_DIR, commitID.substring(0, 1), commitID.substring(2));
+        Commit commit = readObject(c_obj, Commit.class);
+        HashMap<String, String> files = commit.getFiles();
+        if (!additionStage.containsKey(filename)) {
+            // unstaged and untracked
+            if (!files.containsKey(filename)) {
+                throw error("No reason to remove the file.");
+            } else {
+                // unstaged but tracked
+                // stage for removal and remove it from cwd
+                File removedFile = join(CWD, filename);
+                Blob blob = new Blob(readContents(removedFile));
+                String id = blob.getID();
+                removalStage.put(filename, id);
+                removedFile.delete();
+                stage.saveToFile(STAGE);
+            }
+        } else {
+            // staged, remove from stage
+            additionStage.remove(filename);
+            stage.saveToFile(STAGE);
         }
     }
 

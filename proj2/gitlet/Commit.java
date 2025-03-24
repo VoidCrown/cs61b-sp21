@@ -36,9 +36,21 @@ public class Commit implements Serializable{
         }
     }
 
+    public Commit(String message, Commit parent) {
+        this.message = message;
+        this.parent = parent.getID();
+        this.secondParent = null;
+        timestamp = new Date();
+        files = new HashMap<>(parent.getFiles());
+    }
+
     /** get the sha1 hash value using this instance variable. */
     public String getID() {
         return sha1((Object) serialize(this));
+    }
+
+    public HashMap<String, String> getFiles() {
+        return files;
     }
 
     public void saveToFile(File file) {

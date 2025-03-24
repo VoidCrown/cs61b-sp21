@@ -29,14 +29,29 @@ public class Main {
                 break;
             case "add":
                 // handle the `add [filename]` command
-                if (args.length > 2) {
+                if (args.length != 2) {
                     throw error("Incorrect operands.");
                 }
                 Repository.add(args[1]);
                 break;
             case "commit":
                 // handle the `commit [message]` command
+                if (args.length > 2) {
+                    throw error("Incorrect operands.");
+                }
+                if (args.length == 1) {
+                    throw error("Please enter a commit message.");
+                }
+                Repository.commit(args[1]);
                 break;
+            case "rm" :
+                // handle the `rm [filename]` command
+                if (args.length != 2) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.rm(args[1]);
+                break;
+
             default:
                 throw error("No command with that name exists.");
         }
