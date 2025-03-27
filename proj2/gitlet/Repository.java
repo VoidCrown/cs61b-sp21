@@ -2,8 +2,7 @@ package gitlet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static gitlet.Utils.*;
 
@@ -52,7 +51,8 @@ public class Repository {
 //    public static final File REMOVAL_STAGE_DIR = join(GITLET_DIR, "removalStage");
 
 
-    // helper methods
+
+    /** helper method */
     /** Initialize the directory structure. */
     private static void setupPersistence() {
         GITLET_DIR.mkdir();
@@ -61,11 +61,48 @@ public class Repository {
         BLOBS_DIR.mkdir();
         REFS_DIR.mkdir();
         HEADS_DIR.mkdir();
-//        ADDITION_STAGE_DIR.mkdir();
-//        REMOVAL_STAGE_DIR.mkdir();
     }
 
-    // methods for commands
+    private static Commit idToCommit(String id) {
+        File c_obj = join(COMMITS_DIR, id.substring(0, 1), id.substring(2));
+        return readObject(c_obj, Commit.class);
+    }
+
+    private static Commit getCurrentCommit() {
+        String commitID = readContentsAsString(HEAD);
+        File c_obj = join(COMMITS_DIR, commitID.substring(0, 1), commitID.substring(2));
+        return readObject(c_obj, Commit.class);
+    }
+
+    /** store the Commit object to directory COMMITS_DIR,
+     *  the name of file is commitID, and the content in file is Commit object. */
+    private static void saveCommit(Commit commit) {
+        String id = commit.getID();
+        File c_obj = join(COMMITS_DIR, id);
+        commit.saveToFile(c_obj);
+    }
+
+    private static Blob idToBlob(String id) {
+        File b_obj = join(BLOBS_DIR, id.substring(0, 1), id.substring(2));
+        return readObject(b_obj, Blob.class);
+    }
+
+    /** store the Blob object to directory BLOB_DIR,
+     *  the name of file is blobID, and the content in file is Blob object. */
+    private static void saveBlob(Blob blob) {
+        String id = blob.getID();
+        File b_obj = join(BLOBS_DIR, id);
+        blob.saveToFile(b_obj);
+    }
+
+
+    /** Checks whether repository is created. */
+    public static void checkInitialize() {
+        if (!GITLET_DIR.exists())
+            throw error("Not in an initialized Gitlet directory.");
+    }
+
+
     /** Implement init command.
      * Creates a new Gitlet version-control system in the current directory.
      * This system will automatically start with one commit:
@@ -89,17 +126,14 @@ public class Repository {
         // create the first commit and store it
         Commit commit = new Commit("initial commit", null, null);
         String id = commit.getID();
-        File c_objdir = join(COMMITS_DIR, id.substring(0, 1));
-        File c_obj = join(COMMITS_DIR, id.substring(0, 1), id.substring(2));
-        c_objdir.mkdirs();
-        commit.saveToFile(c_obj);
+        saveCommit(commit);
 
         // create and initialize necessary files: HEAD, master and stage.
         File master = join(HEADS_DIR, "master");
         Stage stage = new Stage();
         writeContents(HEAD, id);
         writeContents(master, id);
-        writeObject(STAGE, stage);
+        stage.saveToFile(STAGE);
 
     }
 
@@ -132,8 +166,6 @@ public class Repository {
         // 3. Remove blob from additionStage if the blob is same.
         Blob blob = new Blob(readContents(addedFile));
         String id = blob.getID();
-        File b_objdir = join(BLOBS_DIR, id.substring(0, 1));
-        File b_obj = join(BLOBS_DIR, id.substring(0, 1), id.substring(2));
         Stage stage = readObject(STAGE, Stage.class);
         HashMap<String, String> additionStage = stage.getAdditionStage();
 
@@ -145,8 +177,7 @@ public class Repository {
         } else {
             // blob is different
             // create or overwrite blob file to .gitlet/objects/blobs directory
-            b_objdir.mkdirs();
-            blob.saveToFile(b_obj);
+            saveBlob(blob);
 
             // add or overwrite blob to additionStage
             additionStage.put(filename, id);
@@ -168,9 +199,7 @@ public class Repository {
      * */
     public static void commit(String message) {
         // get current commit
-        String str_currentCommit = readContentsAsString(HEAD);
-        File c_obj = join(COMMITS_DIR, str_currentCommit.substring(0, 1), str_currentCommit.substring(2));
-        Commit currentCommit = readObject(c_obj, Commit.class);
+        Commit currentCommit = getCurrentCommit();
 
         // default snapshot
         Commit newCommit = new Commit(message, currentCommit);
@@ -196,10 +225,7 @@ public class Repository {
 
         // save commit
         String id = newCommit.getID();
-        File new_c_objdir = join(COMMITS_DIR, id.substring(0, 1));
-        File new_c_obj = join(COMMITS_DIR, id.substring(0, 1), id.substring(2));
-        new_c_objdir.mkdirs();
-        newCommit.saveToFile(new_c_obj);
+        saveCommit(newCommit);
 
         // update HEAD
         writeContents(HEAD, id);
@@ -215,9 +241,7 @@ public class Repository {
         Stage stage = readObject(STAGE, Stage.class);
         HashMap<String, String> additionStage = stage.getAdditionStage();
         HashMap<String, String> removalStage = stage.getRemovalStageStage();
-        String commitID = readContentsAsString(HEAD);
-        File c_obj = join(COMMITS_DIR, commitID.substring(0, 1), commitID.substring(2));
-        Commit commit = readObject(c_obj, Commit.class);
+        Commit commit = getCurrentCommit();
         HashMap<String, String> files = commit.getFiles();
         if (!additionStage.containsKey(filename)) {
             // unstaged and untracked
@@ -230,7 +254,7 @@ public class Repository {
                 Blob blob = new Blob(readContents(removedFile));
                 String id = blob.getID();
                 removalStage.put(filename, id);
-                removedFile.delete();
+                restrictedDelete(removedFile);
                 stage.saveToFile(STAGE);
             }
         } else {
@@ -239,5 +263,90 @@ public class Repository {
             stage.saveToFile(STAGE);
         }
     }
+
+    /** helper method */
+    private static void printCommitLog(Commit commit) {
+        Formatter formatter = new Formatter();
+        String id = commit.getID();
+        Date date = commit.getTimestamp();
+
+        System.out.println("===");
+        System.out.println("commit " + id);
+        if (commit.getSecondParent() != null) {
+            System.out.println("Merge: " + commit.getParent().substring(0, 7) + " "
+                        + commit.getSecondParent().substring(0, 7));
+        }
+        System.out.println("Date: ");
+        formatter.format("Date: %ta %tb %td %tT %tY %tz",
+                date, date, date, date, date, date);
+        System.out.println(commit.getMessage());
+        System.out.println();
+    }
+
+    /** Implement log command.
+     * Starting at the current head commit,
+     * display information about each commit backwards along the commit tree until the initial commit,
+     * following the first parent commit links, ignoring any second parents found in merge commits.
+     *  */
+    public static void log() {
+        String str_current = readContentsAsString(HEAD);
+        File c_obj = join(COMMITS_DIR, str_current.substring(0, 1), str_current.substring(2));
+        Commit current = readObject(c_obj, Commit.class);
+        while (current.hasParent()) {
+            printCommitLog(current);
+            current = idToCommit(current.getParent());
+        }
+    }
+
+    /** Implement global-log command.
+     * Like log, except displays information about all commits ever made. The order of the commits does not matter.
+     * */
+    public static void globalLog() {
+        List<String> commits = plainFilenamesIn(COMMITS_DIR);
+        for (String id : commits) {
+            Commit commit = idToCommit(id);
+            printCommitLog(commit);
+        }
+    }
+
+    /** Implement find command.
+     * Prints out the ids of all commits that have the given commit message, one per line.
+     * If there are multiple such commits, it prints the ids out on separate lines.
+     * */
+    public static void find(String message) {
+        List<String> commits = plainFilenamesIn(COMMITS_DIR);
+        boolean isPrint = false;
+        for (String id : commits) {
+            Commit commit = idToCommit(id);
+            if (message.equals(commit.getMessage())) {
+                System.out.println(commit.getID());
+                isPrint = true;
+            }
+        }
+
+        if (!isPrint) {
+            message("Found no commit with that message.");
+        }
+    }
+
+    /** Implement status command.
+     * Displays what branches currently exist, and marks the current branch with a *.
+     * Also displays what files have been staged for addition or removal.
+     * */
+    public static void status() {
+        // branches
+
+        // staged files
+
+        // removed files
+
+        // Modifications Not Staged For Commit
+
+        // Untracked Files
+
+
+
+    }
+
 
 }

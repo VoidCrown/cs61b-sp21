@@ -49,8 +49,28 @@ public class Commit implements Serializable{
         return sha1((Object) serialize(this));
     }
 
+    public Date getTimestamp() {
+        return timestamp;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public String getParent() {
+        return parent;
+    }
+
+    public String getSecondParent() {
+        return secondParent;
+    }
+
     public HashMap<String, String> getFiles() {
         return files;
+    }
+
+    public boolean hasParent() {
+        return parent != null;
     }
 
     public void saveToFile(File file) {

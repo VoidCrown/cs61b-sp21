@@ -32,6 +32,7 @@ public class Main {
                 if (args.length != 2) {
                     throw error("Incorrect operands.");
                 }
+                Repository.checkInitialize();
                 Repository.add(args[1]);
                 break;
             case "commit":
@@ -42,6 +43,7 @@ public class Main {
                 if (args.length == 1) {
                     throw error("Please enter a commit message.");
                 }
+                Repository.checkInitialize();
                 Repository.commit(args[1]);
                 break;
             case "rm" :
@@ -49,9 +51,41 @@ public class Main {
                 if (args.length != 2) {
                     throw error("Incorrect operands.");
                 }
+                Repository.checkInitialize();
                 Repository.rm(args[1]);
                 break;
-
+            case "log":
+                // handle the `log` command
+                if (args.length > 1) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.checkInitialize();
+                Repository.log();
+                break;
+            case "global-log":
+                // handle the `global-log` command
+                if (args.length > 1) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.checkInitialize();
+                Repository.globalLog();
+                break;
+            case "find":
+                // handle the `find [commit message]` command
+                if (args.length != 2) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.checkInitialize();
+                Repository.find(args[1]);
+                break;
+            case "status":
+                // handle the `status` command
+                if (args.length > 1) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.checkInitialize();
+                Repository.status();
+                break;
             default:
                 throw error("No command with that name exists.");
         }
