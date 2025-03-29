@@ -15,9 +15,9 @@ import static gitlet.Utils.*;
  *         |--blobs (folder)
  *     |--refs // store branch info
  *         |--heads // store reference to heads of branches
- *             |--master (file) // refer to current branch, it's hash code
+ *             |--master (file) // refer to current branch, it's hash code of the latest commit.
  *             |--other head file...
- *     |--HEAD (file) //store hash code of current pointer
+ *     |--HEAD (file) //store the current branch head name.
  *     |--stage (file)
  *
  *  @author Mr.T
@@ -63,14 +63,23 @@ public class Repository {
         HEADS_DIR.mkdir();
     }
 
+    /** store the current commit hash code in current branch file, which got from HEAD file. */
+    private static void updateHEAD(String id) {
+        String currentBranch = readContentsAsString(HEAD);
+        File currentBranchFile = join(HEADS_DIR, currentBranch);
+        writeContents(currentBranchFile, id);
+    }
+
     private static Commit idToCommit(String id) {
-        File c_obj = join(COMMITS_DIR, id.substring(0, 1), id.substring(2));
+        File c_obj = join(COMMITS_DIR, id);
         return readObject(c_obj, Commit.class);
     }
 
     private static Commit getCurrentCommit() {
-        String commitID = readContentsAsString(HEAD);
-        File c_obj = join(COMMITS_DIR, commitID.substring(0, 1), commitID.substring(2));
+        String currentBranch = readContentsAsString(HEAD);
+        File currentBranchFile = join(HEADS_DIR, currentBranch);
+        String commitID = readContentsAsString(currentBranchFile);
+        File c_obj = join(COMMITS_DIR, commitID);
         return readObject(c_obj, Commit.class);
     }
 
@@ -83,7 +92,7 @@ public class Repository {
     }
 
     private static Blob idToBlob(String id) {
-        File b_obj = join(BLOBS_DIR, id.substring(0, 1), id.substring(2));
+        File b_obj = join(BLOBS_DIR, id);
         return readObject(b_obj, Blob.class);
     }
 
@@ -131,7 +140,7 @@ public class Repository {
         // create and initialize necessary files: HEAD, master and stage.
         File master = join(HEADS_DIR, "master");
         Stage stage = new Stage();
-        writeContents(HEAD, id);
+        writeContents(HEAD, "master");
         writeContents(master, id);
         stage.saveToFile(STAGE);
 
@@ -227,8 +236,8 @@ public class Repository {
         String id = newCommit.getID();
         saveCommit(newCommit);
 
-        // update HEAD
-        writeContents(HEAD, id);
+        // update HEAD and branch
+        updateHEAD(id);
     }
 
     /** Implement rm command.
@@ -289,11 +298,11 @@ public class Repository {
      * following the first parent commit links, ignoring any second parents found in merge commits.
      *  */
     public static void log() {
-        String str_current = readContentsAsString(HEAD);
-        File c_obj = join(COMMITS_DIR, str_current.substring(0, 1), str_current.substring(2));
-        Commit current = readObject(c_obj, Commit.class);
-        while (current.hasParent()) {
+        Commit current = getCurrentCommit();
+        while (true) {
             printCommitLog(current);
+            if (current.getParent() == null)
+                break;
             current = idToCommit(current.getParent());
         }
     }
@@ -335,18 +344,165 @@ public class Repository {
      * */
     public static void status() {
         // branches
+        List<String> branches = plainFilenamesIn(HEADS_DIR);
+        System.out.println("=== Branches ===");
+        for (String branch : branches) {
+            System.out.println("*" + branch);
+        }
+        System.out.println();
 
         // staged files
+        Stage stage = readObject(STAGE, Stage.class);
+        HashMap<String, String> additionStage = stage.getAdditionStage();
+        Set<String> stagedFiles = additionStage.keySet();
+        System.out.println("=== Staged Files ===");
+        for (String stagedFile : stagedFiles) {
+            System.out.println(stagedFile);
+        }
+        System.out.println();
 
         // removed files
+        HashMap<String, String> removalStage = stage.getRemovalStageStage();
+        Set<String> removedFiles = removalStage.keySet();
+        System.out.println("=== Removed Files ===");
+        for (String removedFile : removedFiles) {
+            System.out.println(removedFile);
+        }
+        System.out.println();
 
         // Modifications Not Staged For Commit
+        System.out.println("=== Removed Files ===");
+        System.out.println();
 
         // Untracked Files
-
-
-
+        System.out.println("=== Removed Files ===");
+        System.out.println();
+        
     }
 
+    /** Implement checkout -- [file name] command and checkout [commit id] -- [file name] command.
+     * ------------------------------------------------------------------------------------------------
+     * checkout -- [file name] command:
+     * Takes the version of the file as it exists in the head commit and puts it in the working directory,
+     * overwriting the version of the file that’s already there if there is one.
+     * The new version of the file is not staged.
+     * ------------------------------------------------------------------------------------------------
+     * checkout [commit id] -- [file name] command:
+     * Takes the version of the file as it exists in the commit with the given id,
+     * and puts it in the working directory, overwriting the version of the file that’s already there if there is one.
+     * The new version of the file is not staged.
+     * */
+    public static void checkoutFile(String commitID, String filename) {
+        Commit commit;
+        if (commitID == null) {
+            commit = getCurrentCommit();
+        } else {
+            File c_obj = join(COMMITS_DIR, commitID);
+            if (!c_obj.exists()) {
+                throw error("No commit with that id exists.");
+            }
+            commit = idToCommit(commitID);
+        }
 
+        HashMap<String, String> files = commit.getFiles();
+        if (!files.containsKey(filename)) {
+            throw error("File does not exist in that commit.");
+        }
+
+        // get the stored file
+        Blob file = idToBlob(files.get(filename));
+
+        // put to the working directory
+        File cwdFile = join(CWD, filename);
+        file.saveToFile(cwdFile);
+    }
+
+    /** Implement checkout [branch name] command.
+     * Takes all files in the commit at the head of the given branch,
+     * and puts them in the working directory, overwriting the versions of the files that are already there if they exist.
+     * Also, at the end of this command, the given branch will now be considered the current branch (HEAD).
+     * Any files that are tracked in the current branch but are not present in the checked-out branch are deleted.
+     * The staging area is cleared, unless the checked-out branch is the current branch.
+     * */
+    public static void checkoutBranch(String branchName) {
+        List<String> branches = plainFilenamesIn(HEADS_DIR);
+        if (!branches.contains(branchName)) {
+            throw error("No such branch exists.");
+        }
+        if (branchName.equals(readContentsAsString(HEAD))) {
+            throw error("No need to checkout the current branch.");
+        }
+
+        // check whether exists any untracked file.
+        List<String> currentFiles = plainFilenamesIn(CWD);
+        Commit currentCommit = getCurrentCommit();
+        HashMap<String, String> trackedFiles = currentCommit.getFiles();
+        assert currentFiles != null;
+        if (!trackedFiles.keySet().containsAll(currentFiles)) {
+            throw error("There is an untracked file in the way; delete it, or add and commit it first.");
+        }
+
+        // clear CWD
+        for (String filename : currentFiles) {
+            File file = join(CWD, filename);
+            restrictedDelete(file);
+        }
+
+        // put all files in branch to CWD
+        String branchCommitId = readContentsAsString(join(HEADS_DIR, branchName));
+        Commit branchCommit = idToCommit(branchCommitId);
+
+        HashMap<String, String> branchCommitFileMap = branchCommit.getFiles();
+        for (Map.Entry<String, String> branchFilePair : branchCommitFileMap.entrySet()) {
+            File file = join(CWD, branchFilePair.getKey());
+            Blob blob = idToBlob(branchFilePair.getValue());
+            blob.saveToFile(file);
+        }
+
+        // update HEAD
+        writeContents(HEAD, branchName);
+    }
+
+    /** Implement branch command.
+     * Creates a new branch with the given name, and points it at the current head commit.
+     * A branch is nothing more than a name for a reference (a SHA-1 identifier) to a commit node.
+     * This command does NOT immediately switch to the newly created branch (just as in real Git).
+     * Before you ever call branch, your code should be running with a default branch called “master”.
+     * */
+    public static void branch(String branchName) {
+        List<String> branches = plainFilenamesIn(HEADS_DIR);
+        if (branches.contains(branchName)) {
+            throw error("A branch with that name already exists.");
+        }
+
+        Commit currentCommit = getCurrentCommit();
+        File branchFile = join(HEADS_DIR, branchName);
+        writeContents(branchFile, currentCommit.getID());
+    }
+
+    /** Implement rm-branch command.
+     * Deletes the branch with the given name. This only means to delete the pointer associated with the branch;
+     * it does not mean to delete all commits that were created under the branch, or anything like that.
+     * */
+    public static void rmBranch(String branchName) {
+        List<String> branches = plainFilenamesIn(HEADS_DIR);
+        if (!branches.contains(branchName)) {
+            throw error("A branch with that name does not exist.");
+        }
+
+        if (branchName.equals(readContentsAsString(HEAD))) {
+            throw error("Cannot remove the current branch.");
+        }
+
+        File branch = join(HEADS_DIR, branchName);
+        branch.delete();
+    }
+
+    /** Implement reset command.
+     * Deletes the branch with the given name. This only means to delete the pointer associated with the branch;
+     * it does not mean to delete all commits that were created under the branch, or anything like that.
+     * */
+    public static void reset(String id) {
+
+    }
 }

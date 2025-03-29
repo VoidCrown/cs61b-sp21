@@ -12,7 +12,7 @@ import gitlet.Utils.*;
  */
 public class Stage implements Serializable {
 
-    // <filename, blob hashcode>
+    // Stage structure: <filename, blob hashcode>
     private HashMap<String, String> additionStage;
     private HashMap<String, String> removalStage;
 
