@@ -417,6 +417,39 @@ public class Repository {
         file.saveToFile(cwdFile);
     }
 
+    /** helper function */
+    /** clear the current working directory, and make sure that no any untracked file exists. */
+    private static void clearCWD() {
+        // check whether exists any untracked file.
+        List<String> currentFiles = plainFilenamesIn(CWD);
+        Commit currentCommit = getCurrentCommit();
+        HashMap<String, String> trackedFiles = currentCommit.getFiles();
+        assert currentFiles != null;
+        if (!trackedFiles.keySet().containsAll(currentFiles)) {
+            throw error("There is an untracked file in the way; delete it, or add and commit it first.");
+        }
+
+        // clear CWD
+        for (String filename : currentFiles) {
+            File file = join(CWD, filename);
+            restrictedDelete(file);
+        }
+    }
+
+    /** helper function */
+    /** get a commit id, then put all files that commit tracked to CWD. */
+    private static void putFileFromCommitToCWD(String id) {
+        Commit commit = idToCommit(id);
+
+        HashMap<String, String> commitFileMap = commit.getFiles();
+        for (Map.Entry<String, String> filePair : commitFileMap.entrySet()) {
+            File file = join(CWD, filePair.getKey());
+            Blob blob = idToBlob(filePair.getValue());
+            blob.saveToFile(file);
+        }
+    }
+
+
     /** Implement checkout [branch name] command.
      * Takes all files in the commit at the head of the given branch,
      * and puts them in the working directory, overwriting the versions of the files that are already there if they exist.
@@ -433,31 +466,12 @@ public class Repository {
             throw error("No need to checkout the current branch.");
         }
 
-        // check whether exists any untracked file.
-        List<String> currentFiles = plainFilenamesIn(CWD);
-        Commit currentCommit = getCurrentCommit();
-        HashMap<String, String> trackedFiles = currentCommit.getFiles();
-        assert currentFiles != null;
-        if (!trackedFiles.keySet().containsAll(currentFiles)) {
-            throw error("There is an untracked file in the way; delete it, or add and commit it first.");
-        }
-
-        // clear CWD
-        for (String filename : currentFiles) {
-            File file = join(CWD, filename);
-            restrictedDelete(file);
-        }
+        // clear CWD and check whether exists any untracked file.
+        clearCWD();
 
         // put all files in branch to CWD
         String branchCommitId = readContentsAsString(join(HEADS_DIR, branchName));
-        Commit branchCommit = idToCommit(branchCommitId);
-
-        HashMap<String, String> branchCommitFileMap = branchCommit.getFiles();
-        for (Map.Entry<String, String> branchFilePair : branchCommitFileMap.entrySet()) {
-            File file = join(CWD, branchFilePair.getKey());
-            Blob blob = idToBlob(branchFilePair.getValue());
-            blob.saveToFile(file);
-        }
+        putFileFromCommitToCWD(branchCommitId);
 
         // update HEAD
         writeContents(HEAD, branchName);
@@ -499,10 +513,26 @@ public class Repository {
     }
 
     /** Implement reset command.
-     * Deletes the branch with the given name. This only means to delete the pointer associated with the branch;
-     * it does not mean to delete all commits that were created under the branch, or anything like that.
+     * Checks out all the files tracked by the given commit.
+     * Removes tracked files that are not present in that commit.
+     * Also moves the current branch’s head to that commit node.
+     * See the intro for an example of what happens to the head pointer after using reset.
+     * The [commit id] may be abbreviated as for checkout. The staging area is cleared.
+     * The command is essentially checkout of an arbitrary commit that also changes the current branch head.
      * */
     public static void reset(String id) {
+        List<String> commits = plainFilenamesIn(COMMITS_DIR);
+        if (!commits.contains(id)) {
+            throw error("No commit with that id exists.");
+        }
 
+        // clear CWD and check whether exists any untracked file.
+        clearCWD();
+
+        // put all files in that commit to CWD
+        putFileFromCommitToCWD(id);
+
+        // moves the current branch’s head to that commit node.
+        updateHEAD(id);
     }
 }

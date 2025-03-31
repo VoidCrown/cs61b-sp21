@@ -119,6 +119,22 @@ public class Main {
                 Repository.checkInitialize();
                 Repository.rmBranch(args[1]);
                 break;
+            case "reset":
+                // handle the `reset [commit id]` command
+                if (args.length > 2) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.checkInitialize();
+                Repository.reset(args[1]);
+                break;
+            case "merge":
+                // handle the `merge [branch name]` command
+                if (args.length > 2) {
+                    throw error("Incorrect operands.");
+                }
+                Repository.checkInitialize();
+                Repository.reset(args[1]);
+                break;
             default:
                 throw error("No command with that name exists.");
         }
