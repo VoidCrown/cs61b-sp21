@@ -13,15 +13,16 @@ import static gitlet.Utils.*;
 public class Blob implements Serializable {
 
     private byte[] contents;
-    private int size;
+    private final int size;
 
     public Blob(byte[] contents) {
         this.contents = contents;
+        this.size = contents.length;
     }
 
     /** get the sha1 hash value using this instance variable. */
     public String getID() {
-        return sha1((Object) serialize(this));
+        return sha1((Object) contents);
     }
 
     public void saveToFile(File file) {

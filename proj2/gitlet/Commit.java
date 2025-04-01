@@ -15,13 +15,13 @@ import java.io.Serializable;
 public class Commit implements Serializable{
 
     /** The message of this Commit. */
-    private String message;
+    private final String message;
     /** The timestamp of this Commit. */
-    private Date timestamp;
+    private final Date timestamp;
     /** The parent commit of this Commit. */
-    private String parent;
+    private final String parent;
     /** The second parent of this Commit, used for merge command. */
-    private String secondParent;
+    private final String secondParent;
     /** The files of this Commit. Structure: <file name, hash code of blob> */
     private HashMap<String, String> files = new HashMap<>();
 
@@ -46,7 +46,8 @@ public class Commit implements Serializable{
 
     /** get the sha1 hash value using this instance variable. */
     public String getID() {
-        return sha1((Object) serialize(this));
+        String variables = message + timestamp.toString() + parent + secondParent + files.toString();
+        return sha1(variables);
     }
 
     public Date getTimestamp() {

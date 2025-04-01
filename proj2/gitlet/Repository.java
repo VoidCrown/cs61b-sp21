@@ -285,9 +285,10 @@ public class Repository {
             System.out.println("Merge: " + commit.getParent().substring(0, 7) + " "
                         + commit.getSecondParent().substring(0, 7));
         }
-        System.out.println("Date: ");
-        formatter.format("Date: %ta %tb %td %tT %tY %tz",
+        formatter.format(Locale.US,
+                "Date: %ta %tb %td %tT %tY %tz",
                 date, date, date, date, date, date);
+        System.out.println(formatter);
         System.out.println(commit.getMessage());
         System.out.println();
     }
