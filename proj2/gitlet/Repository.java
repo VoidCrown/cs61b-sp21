@@ -93,7 +93,7 @@ public class Repository {
 
     private static Blob idToBlob(String id) {
         File b_obj = join(BLOBS_DIR, id);
-        return readObject(b_obj, Blob.class);
+        return new Blob(readContents(b_obj));
     }
 
     /** store the Blob object to directory BLOB_DIR,
@@ -410,7 +410,8 @@ public class Repository {
         }
 
         // get the stored file
-        Blob file = idToBlob(files.get(filename));
+        String blobId = files.get(filename);
+        Blob file = idToBlob(blobId);
 
         // put to the working directory
         File cwdFile = join(CWD, filename);
